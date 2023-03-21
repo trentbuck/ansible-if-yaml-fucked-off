@@ -1,0 +1,80 @@
+[
+  {
+    "name": "set up basic SSH remote access and sudo privesc for Cyber staff",
+    "hosts": "all",
+    "tags": [
+      "users",
+      "sudo",
+      "ssh"
+    ],
+    "vars": {
+      "cyber_authorized_keys_urls": [
+        "https://github.com/trentbuck.keys",
+        "https://github.com/mijofa.keys",
+        "https://github.com/emja.keys"
+      ],
+      "cyber_authorized_keys_users_to_amend": [
+        "root",
+        "cyber"
+      ]
+    },
+    "tasks": [
+      {
+        "name": "Install sudo",
+        "ansible.builtin.package": {
+          "name": "sudo"
+        }
+      },
+      {
+        "name": "Grant cyber passwordless sudo privileges",
+        "ansible.builtin.copy": {
+          "dest": "/etc/sudoers.d/cyber-nopasswd",
+          "content": "# This mostly overlaps with built-in \"sudo ALL=(ALL:ALL) ALL\", which is fine.\n# This allows a simple dropin, instead of having to patch /etc/sudoers.\ncyber ALL=(ALL:ALL) NOPASSWD: ALL"
+        }
+      },
+      {
+        "name": "Create a shared Cyber Sysadmin account",
+        "ansible.builtin.user": {
+          "name": "cyber",
+          "comment": "Cyber Sysadmin",
+          "groups": [
+            "adm",
+            "sudo"
+          ],
+          "append": "yes",
+          "shell": "/bin/bash"
+        }
+      },
+      {
+        "name": "Grant key-based SSH access to Cyber staff",
+        "ansible.builtin.authorized_key": {
+          "user": "{{ item.0 }}",
+          "key": "{{ item.1 }}",
+          "comment": "{{ item.1 }}"
+        },
+        "with_nested": [
+          "{{ cyber_authorized_keys_users_to_amend }}",
+          "{{ cyber_authorized_keys_urls }}"
+        ]
+      },
+      {
+        "name": "Check if any SSH server is already installed",
+        "ansible.builtin.service_facts": {}
+      },
+      {
+        "name": "If no SSH server is installed, install tinysshd",
+        "ansible.builtin.package": {
+          "name": [
+            "tinysshd"
+          ]
+        },
+        "when": [
+          "('ssh.service' not in ansible_facts.services.keys())",
+          "('lsh-server.service' not in ansible_facts.services.keys())",
+          "('dropbear.service' not in ansible_facts.services.keys())",
+          "('tinysshd.socket' not in ansible_facts.services.keys())"
+        ]
+      }
+    ]
+  }
+]

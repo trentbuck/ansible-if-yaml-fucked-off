@@ -1,0 +1,98 @@
+# GOAL: do the bare minimum for "ssh cyber@X -t sudo -i".
+
+# NOTE: this is set up as a separate playbook, so you can easily
+#       do a one-off hack to set up the initial SSH access.
+#       For example:
+#
+#           ansible-playbook -i root@example.com, Cyber-Remote-Access.yaml
+#
+#       Or copy this file over, install ansible, then run
+#
+#           root@example# ansible -c local -i localhost, Cyber-Remote-Access.yaml.
+#
+#       This concept is not well tested, yet!
+#       The main playbook should import this one, so
+#       under normal circumstances you'll still get this, but
+#       it will/can run with "ssh cyber@example.com sudo" i.e. "become mode".
+
+
+- name: set up basic SSH remote access and sudo privesc for Cyber staff
+  hosts: all
+  tags: users, sudo, ssh
+  vars:
+    # FIXME: don't trust Github!  Do SSL certs instead of SSH keys.
+    #        https://archive.org/details/lca2020-Zero_Trust_SSH
+    # FIXME: ALWAYS adds EVERYONE.
+    #        When this was done by hand, staffer was smart enough to prune the whitelist.
+    #        How can we have something like that now?
+    cyber_authorized_keys_urls:
+      - https://github.com/trentbuck.keys  # twb
+      - https://github.com/mijofa.keys     # mike
+      - https://github.com/emja.keys       # ron
+    cyber_authorized_keys_users_to_amend:
+      - root
+      - cyber
+  tasks:
+
+    - name: Install sudo
+      ansible.builtin.package:
+        name: sudo
+    - name: Grant cyber passwordless sudo privileges
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/cyber-nopasswd
+        content: |
+          # This mostly overlaps with built-in "sudo ALL=(ALL:ALL) ALL", which is fine.
+          # This allows a simple dropin, instead of having to patch /etc/sudoers.
+          cyber ALL=(ALL:ALL) NOPASSWD: ALL
+
+    - name: Create a shared Cyber Sysadmin account
+      ansible.builtin.user:
+        name: cyber
+        comment: Cyber Sysadmin
+        # NOTE: when /etc/login.defs:USERGROUPS_ENAB = "yes",
+        #       will implicitly create per-user primary group "cyber",
+        #       usually (always?) with matching UID and GID.
+        groups:
+          - adm
+          - sudo
+        append: yes
+        # NOTE: adduser(8debian) defaults to /bin/bash, but
+        #       useradd(8debian) doesn't.  Sigh.
+        shell: /bin/bash
+        # NOTE: password='!' prevents password logins, but allows SSH key-based logins.
+        # NOTE: we do not set password='!' explicitly anymore.
+        #       If this CREATES the account, it will default to that.
+        #       If this UPDATES the account (because it already exists)
+        #       it won't REMOVE any password set elsewhere.
+
+    - name: Grant key-based SSH access to Cyber staff
+      ansible.builtin.authorized_key:
+        user: "{{ item.0 }}"
+        key: "{{ item.1 }}"
+        # github keys don't have a comment, so add one ourselves - being the URL
+        comment: "{{ item.1 }}"
+      with_nested:
+        - "{{ cyber_authorized_keys_users_to_amend }}"
+        - "{{ cyber_authorized_keys_urls }}"
+
+    - name: Check if any SSH server is already installed
+      ansible.builtin.service_facts:
+
+    - name: If no SSH server is installed, install tinysshd
+      ansible.builtin.package:
+        name:
+          - tinysshd
+          # NOTE: sshfs (or sftp) can use tinysshd if you
+          #       1. install openssh-sftp-server; and
+          #       2. do TINYSSHDOPTS=-vxsftp=/usr/lib/openssh/sftp-server in /etc/default/tinysshd.
+          #       We do not do this because
+          #       1. footprint is 0MB for tinysshd but 11MB for tinysshd+openssh-sftp-server.
+          #       2. openssh-sftp-server requires openssh-client.
+          #       3. apart from Ron, everyone can just use rsync (1MB).
+          #- openssh-sftp-server
+      # FIXME: this "when" clause could be more paranoid.
+      when:
+        - ('ssh.service' not in ansible_facts.services.keys())
+        - ('lsh-server.service' not in ansible_facts.services.keys())
+        - ('dropbear.service' not in ansible_facts.services.keys())
+        - ('tinysshd.socket' not in ansible_facts.services.keys())

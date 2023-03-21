@@ -1,0 +1,18 @@
+{
+  "all": {
+    "vars": {
+      "ansible_python_interpreter": "/usr/bin/python3",
+      "ansible_user": "cyber",
+      "ansible_become": true,
+      "cyber_uacme_email": "sysadmin-uacme@cyber.com.au"
+    },
+    "cyber_server": {
+      "hosts": {
+        "light.cyber.com.au": {},
+        "heavy.cyber.com.au": {},
+        "obese.cyber.com.au": {},
+        "delta.cyber.com.au": {}
+      }
+    }
+  }
+}

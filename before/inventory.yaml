@@ -1,0 +1,35 @@
+# Ref. file:///usr/share/doc/ansible-doc/html/user_guide/intro_inventory.html
+
+all:
+  vars:
+    # By default ansible uses /usr/bin/python, even if that's python2 and python3 is installed.
+    # Force ansible to always use /usr/bin/python3 instead.
+    # Ref. file:///usr/share/doc/ansible-doc/html/reference_appendices/faq.html#how-do-i-handle-python-not-having-a-python-interpreter-at-usr-bin-python-on-a-remote-machine
+    ansible_python_interpreter: /usr/bin/python3
+    # This does "ssh cyber@example.com sudo python3".
+    # See also Cyber-Remote-Access.yaml.
+    ansible_user: cyber
+    ansible_become: yes
+
+    # Used by https://git.cyber.com.au/cyber-ansible/blob/7270cb32a49a8d3c4d6dd91169ac5d834c5bc290/roles/uacme/tasks/main.yaml#L-25
+    cyber_uacme_email: sysadmin-uacme@cyber.com.au
+
+cyber_servers:
+  hosts:
+    # Ansible with SSH to each host mentioned here, and
+    # try to apply configuration rules.
+    # blunt.cyber.com.au:         # test backup server for not-omega
+    # not-alpha.cyber.com.au:
+
+    # NOTE: if you want something like "puppet apply",
+    #       you want to change the hosts: section to look like this.
+    #       The "local" thing makes it not bother to "ssh localhost"
+    #
+    #       hosts:
+    #         localhost:
+    #           ansible_connection: local
+
+    light.cyber.com.au:         # new alpha
+    heavy.cyber.com.au:         # new omega
+    obese.cyber.com.au:         # offsite backup server at Ron's house
+    delta.cyber.com.au:         # dev server (currently Debian 10, not Debian 11)
